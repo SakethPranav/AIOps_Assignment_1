@@ -1,0 +1,34 @@
+def train_and_log(hidden_size=64, lr=0.01, epochs=5, batch_size=64, run_name=None, stage="manual"):
+    with mlflow.start_run(run_name=run_name):
+        # --- parameters (at least 3) ---
+        mlflow.log_param("hidden_size", hidden_size)
+        mlflow.log_param("lr", lr)
+        mlflow.log_param("epochs", epochs)
+        mlflow.log_param("batch_size", batch_size)
+        mlflow.log_param("seed", 42)
+
+        def log_fn(epoch, train_loss, val_acc, val_f1):
+            # --- per-epoch trend metrics (for the overfitting discussion in Q2) ---
+            mlflow.log_metric("train_loss", train_loss, step=epoch)
+            mlflow.log_metric("val_accuracy", val_acc, step=epoch)
+
+        model, acc, f1 = train_and_evaluate(hidden_size, lr, epochs, batch_size, log_fn=log_fn)
+
+        # --- final summary metrics (at least 2) ---
+        mlflow.log_metric("accuracy", acc)
+        mlflow.log_metric("f1_macro", f1)
+
+        mlflow.set_tag("team", "data-science")
+        mlflow.set_tag("stage", stage)  # "baseline" / "sweep" / "autolog" — makes runs easy to filter later
+
+        # mlflow.pytorch.log_model defaults to the 'pt2' export format on newer torch, which needs a
+        # sample input to trace the model graph — grab one test image for that.
+        input_example = test_subset[0][0].unsqueeze(0).numpy()
+        mlflow.pytorch.log_model(model, name="model", input_example=input_example)
+
+        run_id = mlflow.active_run().info.run_id
+        print(f"Logged run {run_id}  |  hidden_size={hidden_size} lr={lr}  |  acc={acc:.4f}  f1={f1:.4f}")
+        return run_id
+
+baseline_run_id = train_and_log(hidden_size=64, lr=0.01, epochs=5, batch_size=64,
+                                 run_name="mlp-baseline", stage="baseline")
